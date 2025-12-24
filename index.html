@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Voca Tracker</title>
+  <link rel="manifest" href="Manifest.json" />
+  <link rel="icon" href="Icon.png" type="image/png" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root { --brand:#4CAF50; --bg:#f5f7fa; --card:#fff; --text:#222; --muted:#667; --danger:#d9534f; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:system-ui, Arial; background:var(--bg); color:var(--text); }
+    header { background:var(--brand); color:#fff; padding:1rem; text-align:center; }
+    main { padding:1rem; max-width:980px; margin:0 auto; }
+    section { background:var(--card); border-radius:12px; padding:1rem; margin:1rem 0; box-shadow:0 2px 10px rgba(0,0,0,0.06); }
+    h2 { margin:0 0 .75rem; }
+    .grid { display:grid; gap:.75rem; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
+    label { display:block; font-size:.9rem; color:var(--muted); margin:.25rem 0; }
+    input, select { width:100%; padding:.55rem .65rem; border:1px solid #ddd; border-radius:8px; background:#fff; }
+    button { background:var(--brand); color:#fff; border:none; border-radius:8px; padding:.6rem .9rem; cursor:pointer; }
+    button.secondary { background:#eee; color:#222; }
+    button.danger { background:var(--danger); color:#fff; }
+    .row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+    .timer { display:flex; gap:1rem; align-items:center; }
+    .ring { width:96px; height:96px; border-radius:50%; background:conic-gradient(var(--brand) 0deg, #ddd 0deg); display:grid; place-items:center; font-weight:700; }
+    .phase { font-weight:600; }
+    progress { width:100%; height:12px; appearance:none; }
+    progress::-webkit-progress-bar { background:#eee; border-radius:6px; }
+    progress::-webkit-progress-value { background:var(--brand); border-radius:6px; }
+    .list { border:1px dashed #ddd; border-radius:8px; padding:.6rem; min-height:48px; }
+    .pill { display:inline-flex; align-items:center; gap:.5rem; background:#f2f6f3; border:1px solid #dce9df; color:#1f3a22; padding:.35rem .6rem; border-radius:999px; margin:.25rem; }
+    .muted { color:var(--muted); font-size:.95rem; }
+    .log-entry { border-top:1px solid #eee; padding:.5rem 0; font-size:.95rem; }
+    .badges { display:flex; gap:.5rem; flex-wrap:wrap; }
+    .badge { background:#fff3cd; color:#7a5a00; border:1px solid #ffe6a3; padding:.25rem .5rem; border-radius:999px; font-size:.85rem; }
+    .hint { text-align:center; padding:.5rem; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>My Voca Tracker</h1>
+  <div class="muted">Breathing • Vocal • Progress</div>
+</header>
+
+<main>
+  <!-- Exercise library with descriptions -->
+  <section>
+    <h2>Exercise library</h2>
+    <div class="grid">
+      <div>
+        <label>Exercise</label>
+        <select id="exerciseSelect">
+          <option value="Lip roll">Lip roll</option>
+          <option value="NG">NG sound</option>
+        </select>
+      </div>
+      <div>
+        <label>Difficulty</label>
+        <select id="difficultySelect">
+          <option>Beginner</option>
+          <option>Intermediate</option>
+          <option>Advanced</option>
+        </select>
+      </div>
+    </div>
+    <div class="row" style="margin-top:.6rem;">
+      <button id="showDescBtn" class="secondary">Show description</button>
+    </div>
+    <div id="descText" class="muted" style="margin-top:.5rem; display:none;"></div>
+  </section>
+
+  <!-- Three-part routine builder -->
+  <section>
+    <h2>Three-part routine builder</h2>
+    <div class="grid">
+      <div>
+        <label>Inhale (seconds)</label>
+        <input type="number" id="inhaleInput" min="1" value="8" />
+      </div>
+      <div>
+        <label>Exercise (Lip roll / NG) (seconds)</label>
+        <input type="number" id="exerciseInput" min="1" value="15" />
+      </div>
+      <div>
+        <label>Uh / Oh (seconds)</label>
+        <input type="number" id="uhOhInput" min="1" value="10" />
+      </div>
+    </div>
+    <div class="row" style="margin-top:.6rem;">
+      <button id="addStepBtn">Add step to routine</button>
+      <button id="clearRoutineBtn" class="secondary">Clear routine</button>
+    </div>
+    <div id="routineList" class="list" style="margin-top:.6rem;"></div>
+    <div class="row" style="margin-top:.6rem;">
+      <button id="runRoutineBtn">Run routine</button>
+      <span id="routineStatus" class="muted">Idle</span>
+    </div>
+  </section>
+
+  <!-- Live timer & controls (used during routine and single runs) -->
+  <section>
+    <h2>Timer & controls</h2>
+    <div class="timer">
+      <div class="ring" id="ring">0s</div>
+      <div style="flex:1;">
+        <div class="phase" id="phaseText">Phase: —</div>
+        <progress id="progressBar" max="100" value="0"></progress>
+        <div class="row" style="margin-top:.5rem;">
+          <button id="startSingleBtn">Start single step</button>
+          <button id="markBreakBtn" class="secondary">Mark break</button>
+          <button id="stopBtn" class="secondary">Stop</button>
+          <span id="statusText" class="muted">Idle</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Progress & insights -->
+  <section>
+    <h2>Progress & insights</h2>
+    <div class="grid">
+      <div>
+        <canvas id="bestChart"></canvas>
+      </div>
+      <div>
+        <canvas id="weeklyChart"></canvas>
+      </div>
+    </div>
+    <div class="badges" id="badges"></div>
+    <div id="insights" class="muted" style="margin-top:.5rem;"></div>
+  </section>
+
+  <!-- Session logs -->
+  <section>
+    <h2>Session log</h2>
+    <div id="log"></div>
+    <div class="row" style="margin-top:.6rem;">
+      <button id="exportCSVBtn" class="secondary">Export CSV</button>
+      <button id="clearLogBtn" class="danger">Clear log</button>
+    </div>
+  </section>
+
+  <!-- iOS install hint -->
+  <div id="iosHint" class="muted hint"></div>
+</main>
+
+<script>
+/* ===== Descriptions ===== */
+const descriptions = {
+  'Lip roll': 'Loose lips, steady airflow. Keep jaw and neck relaxed; avoid clamping. Gentle consistent breath.',
+  'NG': 'Resonant “ng” placed high and forward. Maintain breath support; avoid throat squeezing.',
+};
+
+/* ===== Storage & logs ===== */
+const STORE_KEY = 'vocaLogs';
+const logs = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
+function saveLogs() { localStorage.setItem(STORE_KEY, JSON.stringify(logs)); }
+function addLog(entry) { logs.push(entry); saveLogs(); renderLog(); renderCharts(); renderInsights(); }
+
+/* ===== Elements ===== */
+const exerciseSelect = document.getElementById('exerciseSelect');
+const difficultySelect = document.getElementById('difficultySelect');
+const showDescBtn = document.getElementById('showDescBtn');
+const descText = document.getElementById('descText');
+
+const inhaleInput = document.getElementById('inhaleInput');
+const exerciseInput = document.getElementById('exerciseInput');
+const uhOhInput = document.getElementById('uhOhInput');
+
+const addStepBtn = document.getElementById('addStepBtn');
+const clearRoutineBtn = document.getElementById('clearRoutineBtn');
+const routineList = document.getElementById('routineList');
+const runRoutineBtn = document.getElementById('runRoutineBtn');
+const routineStatus = document.getElementById('routineStatus');
+
+const ring = document.getElementById('ring');
+const phaseText = document.getElementById('phaseText');
+const progressBar = document.getElementById('progressBar');
+const startSingleBtn = document.getElementById('startSingleBtn');
+const markBreakBtn = document.getElementById('markBreakBtn');
+const stopBtn = document.getElementById('stopBtn');
+const statusText = document.getElementById('statusText');
+
+const logEl = document.getElementById('log');
+const exportCSVBtn = document.getElementById('exportCSVBtn');
+const clearLogBtn = document.getElementById('clearLogBtn');
+const badgesEl = document.getElementById('badges');
+const insightsEl = document.getElementById('insights');
+const iosHint = document.getElementById('iosHint');
+
+/* ===== Routine state ===== */
+let routine = []; // [{exercise, inhale, exerciseTime, uhOh, difficulty}]
+function renderRoutine() {
+  routineList.innerHTML = '';
+  routine.forEach((s, i) => {
+    const pill = document.createElement('span');
+    pill.className = 'pill';
+    pill.innerHTML = `${s.exercise} • Inhale ${s.inhale}s → ${s.exercise} ${s.exerciseTime}s → ${s.uhOh}s (Uh/Oh)
+      <button class="secondary" style="padding:.1rem .4rem;" onclick="removeStep(${i})">✕</button>`;
+    routineList.appendChild(pill);
+  });
+}
+function removeStep(i) { routine.splice(i,1); renderRoutine(); }
+
+/* ===== Timer state ===== */
+let timerId = null;
+let phase = null; // 'Inhale' | 'Exercise' | 'Uh/Oh'
+let phaseStart = null;
+let breakAtSeconds = null; // seconds into current phase
+let currentStep = null;    // object for the active three-part step
+function resetVisuals() {
+  ring.style.background = `conic-gradient(var(--brand) 0deg, #ddd 0deg)`;
+  ring.textContent = '0s';
+  progressBar.value = 0;
+  phaseText.textContent = 'Phase: —';
+}
+function updateVisuals(totalMs, remMs, label) {
+  const pct = Math.max(0, Math.min(100, Math.round(100 * (totalMs - remMs) / totalMs)));
+  const secondsLeft = Math.ceil(remMs / 1000);
+  ring.style.background = `conic-gradient(var(--brand) ${pct*3.6}deg, #ddd ${pct*3.6}deg)`;
+  ring.textContent = `${secondsLeft}s`;
+  progressBar.value = pct;
+  phaseText.textContent = `Phase: ${label}`;
+}
+
+/* ===== Three-phase runner ===== */
+function runPhase(label, seconds) {
+  return new Promise(resolve => {
+    if (timerId) clearInterval(timerId);
+    phase = label;
+    phaseStart = Date.now();
+    breakAtSeconds = null;
+    const totalMs = Math.max(1, seconds) * 1000;
+    let remMs = totalMs;
+    statusText.textContent = `Running ${label} (${seconds}s)`;
+    updateVisuals(totalMs, remMs, label);
+    timerId = setInterval(() => {
+      remMs -= 50;
+      if (remMs <= 0) {
+        clearInterval(timerId);
+        timerId = null;
+        resolve();
+      } else {
+        updateVisuals(totalMs, remMs, label);
+      }
+    }, 50);
+  });
+}
+
+async function runThreePartStep(step) {
+  currentStep = step;
+  // Inhale
+  await runPhase('Inhale', step.inhale);
+  // Exercise
+  await runPhase(step.exercise, step.exerciseTime);
+  // Uh/Oh
+  await runPhase('Uh/Oh', step.uhOh);
+
+  // Log after all three phases
+  const entry = {
+    date: new Date().toLocaleString(),
+    exercise: step.exercise,
+    difficulty: step.difficulty,
+    inhaleSeconds: step.inhale,
+    exerciseSeconds: step.exerciseTime,
+    uhOhSeconds: step.uhOh,
+    // If a break was marked, we store which phase and when
+    breakPhase: step._breakPhase || null,
+    breakAtSeconds: step._breakAtSeconds || null
+  };
+  addLog(entry);
+  statusText.textContent = 'Step completed';
+  resetVisuals();
+  step._breakPhase = null;
+  step._breakAtSeconds = null;
+}
+
+/* ===== Controls ===== */
+showDescBtn.onclick = () => {
+  descText.textContent = descriptions[exerciseSelect.value] || '';
+  descText.style.display = 'block';
+};
+
+addStepBtn.onclick = () => {
+  const step = {
+    exercise: exerciseSelect.value,
+    inhale: parseInt(inhaleInput.value || '0', 10),
+    exerciseTime: parseInt(exerciseInput.value || '0', 10),
+    uhOh: parseInt(uhOhInput.value || '0', 10),
+    difficulty: difficultySelect.value
+  };
+  if (!step.inhale || !step.exerciseTime || !step.uhOh) {
+    alert('Please set all durations (inhale, exercise, Uh/Oh) to at least 1 second.');
+    return;
+  }
+  routine.push(step);
+  renderRoutine();
+};
+
+clearRoutineBtn.onclick = () => { routine = []; renderRoutine(); };
+
+runRoutineBtn.onclick = async () => {
+  if (!routine.length) { alert('Add at least one step to the routine.'); return; }
+  routineStatus.textContent = 'Running routine...';
+  for (const step of routine) {
+    await runThreePartStep(step);
+  }
+  routineStatus.textContent = 'Routine complete';
+};
+
+startSingleBtn.onclick = async () => {
+  // Runs a single step using current inputs and selected exercise
+  const step = {
+    exercise: exerciseSelect.value,
+    inhale: parseInt(inhaleInput.value || '0', 10),
+    exerciseTime: parseInt(exerciseInput.value || '0', 10),
+    uhOh: parseInt(uhOhInput.value || '0', 10),
+    difficulty: difficultySelect.value
+  };
+  if (!step.inhale || !step.exerciseTime || !step.uhOh) {
+    alert('Please set all durations (inhale, exercise, Uh/Oh) to at least 1 second.');
+    return;
+  }
+  await runThreePartStep(step);
+};
+
+markBreakBtn.onclick = () => {
+  if (!phaseStart || !currentStep) return;
+  const seconds = Math.round((Date.now() - phaseStart) / 1000);
+  breakAtSeconds = seconds;
+  // Save into the active step
+  currentStep._breakPhase = phase;
+  currentStep._breakAtSeconds = seconds;
+  statusText.textContent = `Break marked in ${phase} at ${seconds}s`;
+};
+
+stopBtn.onclick = () => {
+  if (timerId) clearInterval(timerId);
+  timerId = null;
+  statusText.textContent = 'Stopped';
+  resetVisuals();
+  // If stopped mid-step, log partial with current inputs
+  if (currentStep) {
+    const entry = {
+      date: new Date().toLocaleString(),
+      exercise: currentStep.exercise,
+      difficulty: currentStep.difficulty,
+      inhaleSeconds: currentStep.inhale,
+      exerciseSeconds: currentStep.exerciseTime,
+      uhOhSeconds: currentStep.uhOh,
+      breakPhase: currentStep._breakPhase || phase || null,
+      breakAtSeconds: currentStep._breakAtSeconds || breakAtSeconds || null,
+      stoppedEarly: true
+    };
+    addLog(entry);
+    currentStep._breakPhase = null;
+    currentStep._breakAtSeconds = null;
+  }
+};
+
+/* ===== Logs ===== */
+function renderLog() {
+  logEl.innerHTML = logs.map(l => `
+    <div class="log-entry">
+      <strong>${l.exercise}</strong> • ${l.difficulty}
+      — Inhale: ${l.inhaleSeconds ?? '-'}s • Exercise: ${l.exerciseSeconds ?? '-'}s • Uh/Oh: ${l.uhOhSeconds ?? '-'}s
+      ${l.breakPhase ? ` • Break in ${l.breakPhase} at ${l.breakAtSeconds}s` : ''}
+      ${l.stoppedEarly ? ` • Stopped early` : ''}
+      <div class="muted">${l.date}</div>
+    </div>
+  `).join('');
+}
+
+exportCSVBtn.onclick = () => {
+  const headers = ['date','exercise','difficulty','inhaleSeconds','exerciseSeconds','uhOhSeconds','breakPhase','breakAtSeconds','stoppedEarly'];
+  const rows = logs.map(l => [
+    l.date, l.exercise, l.difficulty,
+    l.inhaleSeconds ?? '', l.exerciseSeconds ?? '', l.uhOhSeconds ?? '',
+    l.breakPhase ?? '', l.breakAtSeconds ?? '', l.stoppedEarly ? 'yes' : ''
+  ]);
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'voca_logs.csv'; a.click();
+};
+
+clearLogBtn.onclick = () => {
+  if (confirm('Clear all logs?')) {
+    localStorage.removeItem(STORE_KEY);
+    logs.length = 0;
+    renderLog(); renderCharts(); renderInsights();
+  }
+};
+
+/* ===== Charts ===== */
+const bestCtx = document.getElementById('bestChart').getContext('2d');
+const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
+
+const bestChart = new Chart(bestCtx, {
+  type:'line',
+  data:{ labels:[], datasets:[{ label:'Best exercise phase (s) by exercise', data:[], borderColor:'#4CAF50', fill:false }] },
+  options:{ plugins:{ legend:{ display:false } } }
+});
+
+const weeklyChart = new Chart(weeklyCtx, {
+  type:'bar',
+  data:{ labels:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], datasets:[{ label:'Sessions', data:[0,0,0,0,0,0,0], backgroundColor:'#8bc34a' }] },
+  options:{ plugins:{ legend:{ display:false } } }
+});
+
+function renderCharts() {
+  // Best "exercise" phase per exercise (not inhale or Uh/Oh)
+  const bests = {};
+  logs.forEach(l => {
+    const v = l.exerciseSeconds || 0;
+    bests[l.exercise] = Math.max(bests[l.exercise] || 0, v);
+  });
+  bestChart.data.labels = Object.keys(bests);
+  bestChart.data.datasets[0].data = Object.values(bests);
+  bestChart.update();
+
+  // Weekly count
+  const week = [0,0,0,0,0,0,0];
+  logs.forEach(l => {
+    const d = new Date(l.date);
+    const idx = (d.getDay()+6)%7; // Monday=0
+    week[idx] = week[idx] + 1;
+  });
+  weeklyChart.data.datasets[0].data = week;
+  weeklyChart.update();
+}
+
+/* ===== Insights & badges ===== */
+function renderInsights() {
+  // Break patterns by phase
+  const breaks = { 'Inhale':[], 'Lip roll':[], 'NG':[], 'Uh/Oh':[] };
+  logs.forEach(l => {
+    if (l.breakPhase && l.breakAtSeconds) {
+      breaks[l.breakPhase] = breaks[l.breakPhase] || [];
+      breaks[l.breakPhase].push(l.breakAtSeconds);
+    }
+  });
+  const tips = Object.entries(breaks)
+    .filter(([_, arr]) => arr && arr.length)
+    .map(([phase, arr]) => {
+      const avg = Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
+      return `You often break during ${phase} around ${avg}s — consider reducing duration or softening airflow before that.`;
+    });
+
+  // Strengths: milestones on exercise phase
+  const bests = {};
+  logs.forEach(l => {
+    const v = l.exerciseSeconds || 0;
+    bests[l.exercise] = Math.max(bests[l.exercise]||0, v);
+  });
+  const strong = Object.entries(bests)
+    .filter(([_, v]) => v >= 60)
+    .map(([ex, v]) => `Great: ${ex} sustained ${v}s`);
+
+  insightsEl.innerHTML = [
+    tips.length ? `<div>${tips.join('<br>')}</div>` : 'No break patterns yet.',
+    strong.length ? `<div style="margin-top:.25rem;">${strong.join('<br>')}</div>` : ''
+  ].join('');
+
+  badgesEl.innerHTML = '';
+  Object.entries(bests).forEach(([ex,v]) => {
+    if (v >= 30) badgesEl.innerHTML += `<span class="badge">${ex}: 30s milestone</span>`;
+    if (v >= 60) badgesEl.innerHTML += `<span class="badge">${ex}: 60s milestone</span>`;
+  });
+}
+
+/* ===== Init ===== */
+function init() {
+  renderLog();
+  renderCharts();
+  renderInsights();
+  // iOS install hint
+  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if (isIos && !isStandalone) {
+    iosHint.textContent = 'Tip: Add to Home Screen for a full-screen app (Share → Add to Home Screen).';
+  }
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/My-voca/service-worker.js');
+  }
+}
+init();
+</script>
+</body>
+</html>
